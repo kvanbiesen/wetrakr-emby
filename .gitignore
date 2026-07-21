@@ -1,0 +1,28 @@
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.swp
+.vs/
+
+# Packaging output
+artifacts/
+artifacts-lts/
+artifacts-stable/
+*.zip
+*.tar.gz
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Claude Code per-repo memory (napkin runbook)
+.claude/
