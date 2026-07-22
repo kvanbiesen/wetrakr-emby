@@ -82,6 +82,11 @@ One deliberate behavior change from the Jellyfin plugin: **connections are per E
 paired Emby user, and `ScrobbleManager` looks up the playing/rating user's entry before sending
 anything. See [`Configuration/PluginConfiguration.cs`](Emby.Plugin.WeTrakr/Configuration/PluginConfiguration.cs).
 
+Another addition ported from [wetrakr-kodi](https://github.com/wetrakr/wetrakr-kodi)'s
+`resources/lib/api.py`: `WeTrakrClient` treats an HTTP `401`/`403` on a scrobble POST as "this
+token was revoked" and clears it immediately, rather than retrying forever against a dead token
+while `Status` keeps incorrectly reporting the user as connected.
+
 Otherwise the behavior matches the Jellyfin plugin:
 
 - Subscribes to `ISessionManager.PlaybackStart / PlaybackProgress / PlaybackStopped` and
@@ -92,6 +97,16 @@ Otherwise the behavior matches the Jellyfin plugin:
   a user rates an item — same as wetrakr-jf. Any downstream behavior on WeTrakr's side (e.g. list
   mapping, periodic re-sync) is backend logic that consumes these webhook events; it isn't
   implemented in either plugin's own source.
+
+One addition beyond wetrakr-jf: Emby's stock apps have no personal star-rating UI (confirmed with
+an Emby moderator — "There is none currently"), so the rating half of `UserDataSaved` has nothing
+to trigger it in practice. Favoriting an item, however, is a real native Emby feature, and Emby's
+`UserDataSaveReason` enum has no dedicated value for it — favoriting/unfavoriting just shows up as
+a `UserDataSaved` fire (often alongside unrelated saves, like every playback-progress tick, which
+also carry the item's current favorite state even when unchanged). `Scrobbling/FavoriteStateTracker.cs`
+tracks the last-known `IsFavorite` per (user, item) and only dispatches on an actual transition,
+so favorites now sync correctly without depending on knowing which internal reason Emby happens to
+report.
 - Posts a JSON body to `{ApiBaseUrl}/webhooks/jellyfin/{WebhookToken}`.
 - `WebhookToken` is obtained via the WeTrakr device-code OAuth flow
   (`/oauth/device/code?platform=jellyfin` + `/oauth/device/token`).

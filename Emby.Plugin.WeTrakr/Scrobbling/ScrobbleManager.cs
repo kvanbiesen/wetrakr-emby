@@ -40,6 +40,7 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
         private readonly WeTrakrClient _client;
         private readonly PayloadBuilder _builder;
         private readonly PauseStateTracker _paused;
+        private readonly FavoriteStateTracker _favorites;
         private readonly ILogger _logger;
 
         public ScrobbleManager(
@@ -54,6 +55,7 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
             _client = new WeTrakrClient(httpClient, logManager);
             _builder = new PayloadBuilder();
             _paused = new PauseStateTracker();
+            _favorites = new FavoriteStateTracker();
         }
 
         public void Run()
@@ -138,19 +140,39 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
             // if it throws, the original request 500s for the user.
             try
             {
-                if (e.SaveReason != UserDataSaveReason.TogglePlayed
-                    && e.SaveReason != UserDataSaveReason.UpdateUserRating)
+                if (!ShouldDispatch(e.Item)) return;
+                if (e.User == null || e.UserData == null) return;
+
+                // Emby has no dedicated UserDataSaveReason for "favorite toggled" —
+                // detect it as a transition instead, since UserDataSaved fires (with
+                // the item's current IsFavorite value) on unrelated saves too, e.g.
+                // every playback progress tick.
+                var favoriteKey = e.User.Id.ToString("N") + ":" + e.Item.Id.ToString("N");
+                var favoriteChanged = _favorites.HasChanged(favoriteKey, e.UserData.IsFavorite);
+
+                string eventName;
+                string saveReason;
+                if (e.SaveReason == UserDataSaveReason.TogglePlayed)
+                {
+                    eventName = "ItemMarkedPlayed";
+                    saveReason = e.SaveReason.ToString();
+                }
+                else if (e.SaveReason == UserDataSaveReason.UpdateUserRating)
+                {
+                    eventName = "UserDataSaved";
+                    saveReason = e.SaveReason.ToString();
+                }
+                else if (favoriteChanged)
+                {
+                    eventName = "UserDataSaved";
+                    saveReason = "ToggleFavorite";
+                }
+                else
                 {
                     return;
                 }
 
-                if (!ShouldDispatch(e.Item)) return;
-
-                var eventName = e.SaveReason == UserDataSaveReason.TogglePlayed
-                    ? "ItemMarkedPlayed"
-                    : "UserDataSaved";
-
-                _ = DispatchUserDataAsync(e, eventName);
+                _ = DispatchUserDataAsync(e, eventName, saveReason);
             }
             catch (Exception ex)
             {
@@ -158,7 +180,7 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
             }
         }
 
-        private async Task DispatchUserDataAsync(UserDataSaveEventArgs e, string eventName)
+        private async Task DispatchUserDataAsync(UserDataSaveEventArgs e, string eventName, string saveReason)
         {
             try
             {
@@ -173,7 +195,7 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
                 if (eventName == "ItemMarkedPlayed" && !userConfig.ScrobbleWatched) return;
                 if (eventName == "UserDataSaved" && !userConfig.ScrobbleRatings) return;
 
-                var payload = _builder.BuildUserData(eventName, e.Item, e.UserData, e.User, e.SaveReason.ToString());
+                var payload = _builder.BuildUserData(eventName, e.Item, e.UserData, e.User, saveReason);
                 await _client.SendAsync(config.ApiBaseUrl, userConfig, payload, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception ex)

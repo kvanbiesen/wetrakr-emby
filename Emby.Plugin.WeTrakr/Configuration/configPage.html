@@ -115,15 +115,23 @@
         <div class="checkboxContainer checkboxContainer-withDescription">
           <label>
             <input type="checkbox" is="emby-checkbox" id="wtToggleWatched" />
-            <span>Track "mark as watched" (coming soon)</span>
+            <span>Track "mark as watched"</span>
           </label>
+          <div class="fieldDescription checkboxFieldDescription">
+            Sends an event when you manually toggle an item as played in Emby.
+          </div>
         </div>
 
         <div class="checkboxContainer checkboxContainer-withDescription">
           <label>
             <input type="checkbox" is="emby-checkbox" id="wtToggleRatings" />
-            <span>Sync ratings and favorites (coming soon)</span>
+            <span>Sync favorites and ratings</span>
           </label>
+          <div class="fieldDescription checkboxFieldDescription">
+            Favoriting an item is sent immediately. Emby's stock apps don't currently have a
+            personal star-rating feature, so the ratings half of this has nothing to trigger it
+            yet — it'll start working automatically if that ever ships.
+          </div>
         </div>
 
         <br/>

@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 using System.Reflection;
 using System.Text.Json;
 using System.Threading;
@@ -13,8 +14,8 @@ namespace Emby.Plugin.WeTrakr.Api
     /// <summary>
     /// POSTs scrobble payloads to {ApiBaseUrl}/webhooks/jellyfin/{WebhookToken}.
     /// Deliberately reuses the jellyfin webhook route — see the note on
-    /// DeviceCodeClient for why. One retry on failure — scrobble must never
-    /// throw into the event loop or Emby's playback pipeline.
+    /// DeviceCodeClient for why. One retry on transient failure — scrobble must
+    /// never throw into the event loop or Emby's playback pipeline.
     ///
     /// Uses System.Text.Json directly rather than Emby's IJsonSerializer — see the
     /// note on DeviceCodeClient: Emby's serializer does not honor
@@ -56,16 +57,42 @@ namespace Emby.Plugin.WeTrakr.Api
                         RequestContent = body,
                         CancellationToken = ct,
                         UserAgent = UserAgentValue,
-                        ThrowOnErrorResponse = true
+                        ThrowOnErrorResponse = false
                     };
 
-                    using (await _httpClient.Post(options).ConfigureAwait(false))
+                    using (var response = await _httpClient.Post(options).ConfigureAwait(false))
                     {
-                        // Update local bookkeeping — best-effort, non-critical.
-                        userConfig.LastScrobbleAt = DateTime.UtcNow;
-                        userConfig.ScrobbleCount++;
-                        Plugin.Instance?.SaveConfiguration();
-                        return;
+                        var status = (int)response.StatusCode;
+
+                        if (status >= 200 && status < 300)
+                        {
+                            // Update local bookkeeping — best-effort, non-critical.
+                            userConfig.LastScrobbleAt = DateTime.UtcNow;
+                            userConfig.ScrobbleCount++;
+                            Plugin.Instance?.SaveConfiguration();
+                            return;
+                        }
+
+                        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+                        {
+                            // The server no longer recognises this token (revoked,
+                            // rotated, or disconnected from the WeTrakr side). Without
+                            // this, a dead token "works" forever from the plugin's
+                            // point of view while every event is silently dropped
+                            // server-side — same failure mode wetrakr-kodi's api.py
+                            // guards against. Clearing it makes Status correctly
+                            // report disconnected so the user knows to reconnect.
+                            _logger.Warn("[WeTrakr] Token rejected ({0}) for event {1} — clearing connection, reconnect required", response.StatusCode, payload.Event);
+                            userConfig.WebhookToken = string.Empty;
+                            Plugin.Instance?.SaveConfiguration();
+                            return;
+                        }
+
+                        _logger.Debug("[WeTrakr] POST attempt {0} returned {1} for event {2}", attempt, response.StatusCode, payload.Event);
+                        if (attempt == 2)
+                        {
+                            _logger.Warn("[WeTrakr] POST failed for event {0} after retry: {1}", payload.Event, response.StatusCode);
+                        }
                     }
                 }
                 catch (Exception ex) when (attempt == 1)
