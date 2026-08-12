@@ -129,3 +129,5 @@ needed, since the payload shape and event set are already identical.
 ## License
 
 MIT. Emby logo is © Emby, used under fair use for interoperability documentation.
+
+Thank you
