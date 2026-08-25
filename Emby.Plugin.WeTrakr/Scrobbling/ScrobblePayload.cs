@@ -17,6 +17,16 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
         [JsonPropertyName("user_name")]
         public string UserName { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Always true for this plugin: every WeTrakrUserConfig connection is
+        /// already scoped to exactly one Emby user's own token (no shared/legacy
+        /// single-token mode exists here, unlike wetrakr-jf's pre-multi-account
+        /// pairing). Sent for wire parity with the jellyfin webhook route this
+        /// plugin piggybacks on, in case the API reads it.
+        /// </summary>
+        [JsonPropertyName("is_owner")]
+        public bool IsOwner { get; set; } = true;
+
         [JsonPropertyName("item_id")]
         public string ItemId { get; set; } = string.Empty;
 

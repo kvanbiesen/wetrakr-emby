@@ -41,6 +41,8 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
         private readonly PayloadBuilder _builder;
         private readonly PauseStateTracker _paused;
         private readonly FavoriteStateTracker _favorites;
+        private readonly ProgressThrottle _progress;
+        private readonly PlayedStateTracker _playedState;
         private readonly ILogger _logger;
 
         public ScrobbleManager(
@@ -56,6 +58,8 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
             _builder = new PayloadBuilder();
             _paused = new PauseStateTracker();
             _favorites = new FavoriteStateTracker();
+            _progress = new ProgressThrottle();
+            _playedState = new PlayedStateTracker();
         }
 
         public void Run()
@@ -78,6 +82,9 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
 
         private void OnPlaybackStart(object sender, PlaybackProgressEventArgs e)
         {
+            // Seed the throttle so the first progress tick right after start (which
+            // carries the same position PlaybackStart already sent) is suppressed.
+            _progress.Seed(SessionKey(e), DateTime.UtcNow);
             _ = DispatchAsync(e, "PlaybackStart", e.IsPaused, played: false);
         }
 
@@ -85,6 +92,7 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
         {
             var key = SessionKey(e);
             _paused.Remove(key);
+            _progress.Remove(key);
             _ = DispatchAsync(e, "PlaybackStop", isPaused: false, played: e.PlayedToCompletion);
         }
 
@@ -99,6 +107,15 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
             else eventName = "PlaybackProgress";
 
             _paused.Set(key, e.IsPaused);
+
+            // Pause/unpause transitions are meaningful and rare — always dispatch.
+            // A plain progress tick only goes through once per ProgressThrottle.MinInterval
+            // per session; the rest are dropped here, before any HTTP call.
+            if (eventName == "PlaybackProgress" && !_progress.ShouldDispatch(key, DateTime.UtcNow))
+            {
+                return;
+            }
+
             _ = DispatchAsync(e, eventName, e.IsPaused, played: false);
         }
 
@@ -154,6 +171,17 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
                 string saveReason;
                 if (e.SaveReason == UserDataSaveReason.TogglePlayed)
                 {
+                    // Emby raises TogglePlayed even when the played flag is
+                    // unchanged — a plugin/task that re-applies watched state
+                    // across the whole library would otherwise flood the API
+                    // with redundant events (confirmed in production on
+                    // wetrakr-jf: ~36k redundant events in 24h from one server).
+                    var playedKey = PlayedStateTracker.KeyFor(e.User.Id, e.Item.Id);
+                    if (!_playedState.ShouldDispatch(playedKey, e.UserData.Played, DateTime.UtcNow))
+                    {
+                        return;
+                    }
+
                     eventName = "ItemMarkedPlayed";
                     saveReason = e.SaveReason.ToString();
                 }

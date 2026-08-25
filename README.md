@@ -154,6 +154,26 @@ jellyfin one). Once that lands, switch over by changing `platform=jellyfin` → 
 [`Api/WeTrakrClient.cs`](Emby.Plugin.WeTrakr/Api/WeTrakrClient.cs) — no other changes should be
 needed, since the payload shape and event set are already identical.
 
+### Backported from wetrakr-jf (2026-08)
+
+wetrakr-jf independently converged on the same per-Jellyfin-user connection model this plugin
+already had — no action needed there, ours has no legacy-migration baggage to carry since it was
+per-user from the start. Three other fixes from that work were worth pulling in regardless:
+
+- **[`Scrobbling/ProgressThrottle.cs`](Emby.Plugin.WeTrakr/Scrobbling/ProgressThrottle.cs)** — plain
+  `PlaybackProgress` events are now throttled to at most one per 10 minutes per session (Start/Stop/
+  Pause/Unpause are never throttled). Emby fires progress every few seconds; forwarding each one
+  floods WeTrakr's API — this plugin has already been rate-limited under far lighter load than a
+  real progress stream during earlier testing.
+- **[`Scrobbling/PlayedStateTracker.cs`](Emby.Plugin.WeTrakr/Scrobbling/PlayedStateTracker.cs)** —
+  `ItemMarkedPlayed` is now only dispatched when the played flag actually flips for a (user, item)
+  pair. `UserDataSaveReason.TogglePlayed` fires even when the value is unchanged, and wetrakr-jf hit
+  a confirmed production incident from this: a scheduled sync task re-applying watched state across
+  a library produced ~36,000 redundant events in 24h from a single server.
+- **`is_owner` field** on `ScrobblePayload` — added for wire parity with the jellyfin webhook
+  contract this plugin piggybacks on. Always `true` here (see the field's own doc comment for why
+  wetrakr-jf's fuller `is_owner`/legacy-pairing logic doesn't apply to this plugin's architecture).
+
 ## License
 
 MIT. Emby logo is © Emby, used under fair use for interoperability documentation.
