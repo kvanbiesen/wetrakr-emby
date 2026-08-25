@@ -73,6 +73,8 @@ define(['loading', 'emby-input', 'emby-button', 'emby-checkbox', 'emby-select'],
         view.querySelector('#wtTogglePlaying').checked = !!s.ScrobblePlaying;
         view.querySelector('#wtToggleWatched').checked = !!s.ScrobbleWatched;
         view.querySelector('#wtToggleRatings').checked = !!s.ScrobbleRatings;
+        view.querySelector('#wtToggleSyncHistory').checked = !!s.SyncWatchedHistory;
+        loadFolders(view, s.LocationsExcluded || []);
         showState(view, 'Connected');
       } else {
         showState(view, 'Disconnected');
@@ -80,6 +82,50 @@ define(['loading', 'emby-input', 'emby-button', 'emby-checkbox', 'emby-select'],
     }).catch(function (err) {
       console.error('[WeTrakr] Status error:', err, 'status:', err && err.status);
       showState(view, 'Disconnected');
+    });
+  }
+
+  function loadFolders(view, excludedLocations) {
+    var container = view.querySelector('#wtLocations');
+    return ApiClient.getVirtualFolders(currentUserId(view)).then(function (virtualFolders) {
+      container.innerHTML = '';
+      (virtualFolders || []).forEach(function (folder) {
+        (folder.Locations || []).forEach(function (location) {
+          var label = document.createElement('label');
+          label.className = 'emby-checkbox-label';
+
+          var input = document.createElement('input', { is: 'emby-checkbox' });
+          input.type = 'checkbox';
+          input.className = 'wtLocationCheckbox';
+          input.value = location;
+          input.checked = excludedLocations.indexOf(location) !== -1;
+          input.addEventListener('change', function () { saveExcludedLocations(view); });
+
+          var span = document.createElement('span');
+          span.textContent = folder.Name + ' — ' + location;
+
+          label.appendChild(input);
+          label.appendChild(span);
+          container.appendChild(label);
+        });
+      });
+    }).catch(function (err) {
+      console.error('[WeTrakr] Failed to load folders', err);
+    });
+  }
+
+  function saveExcludedLocations(view) {
+    var container = view.querySelector('#wtLocations');
+    var checked = Array.prototype.filter.call(
+      container.querySelectorAll('.wtLocationCheckbox'),
+      function (cb) { return cb.checked; }
+    ).map(function (cb) { return cb.value; });
+
+    return ApiClient.ajax({
+      type: 'POST',
+      url: apiUrl(view, 'Settings'),
+      data: JSON.stringify({ LocationsExcluded: checked }),
+      contentType: 'application/json'
     });
   }
 
@@ -170,6 +216,7 @@ define(['loading', 'emby-input', 'emby-button', 'emby-checkbox', 'emby-select'],
     view.querySelector('#wtTogglePlaying').addEventListener('change', function (e) { updateSetting(view, 'ScrobblePlaying', e.target.checked); });
     view.querySelector('#wtToggleWatched').addEventListener('change', function (e) { updateSetting(view, 'ScrobbleWatched', e.target.checked); });
     view.querySelector('#wtToggleRatings').addEventListener('change', function (e) { updateSetting(view, 'ScrobbleRatings', e.target.checked); });
+    view.querySelector('#wtToggleSyncHistory').addEventListener('change', function (e) { updateSetting(view, 'SyncWatchedHistory', e.target.checked); });
     view.querySelector('#wtSelectUser').addEventListener('change', function () { loadForSelectedUser(view); });
 
     view.addEventListener('viewshow', function () {

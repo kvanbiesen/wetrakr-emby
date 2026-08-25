@@ -97,19 +97,47 @@ Otherwise the behavior matches the Jellyfin plugin:
   a user rates an item — same as wetrakr-jf. Any downstream behavior on WeTrakr's side (e.g. list
   mapping, periodic re-sync) is backend logic that consumes these webhook events; it isn't
   implemented in either plugin's own source.
-
-One addition beyond wetrakr-jf: Emby's stock apps have no personal star-rating UI (confirmed with
-an Emby moderator — "There is none currently"), so the rating half of `UserDataSaved` has nothing
-to trigger it in practice. Favoriting an item, however, is a real native Emby feature, and Emby's
-`UserDataSaveReason` enum has no dedicated value for it — favoriting/unfavoriting just shows up as
-a `UserDataSaved` fire (often alongside unrelated saves, like every playback-progress tick, which
-also carry the item's current favorite state even when unchanged). `Scrobbling/FavoriteStateTracker.cs`
-tracks the last-known `IsFavorite` per (user, item) and only dispatches on an actual transition,
-so favorites now sync correctly without depending on knowing which internal reason Emby happens to
-report.
 - Posts a JSON body to `{ApiBaseUrl}/webhooks/jellyfin/{WebhookToken}`.
 - `WebhookToken` is obtained via the WeTrakr device-code OAuth flow
   (`/oauth/device/code?platform=jellyfin` + `/oauth/device/token`).
+
+### Additions beyond wetrakr-jf
+
+**Favorites sync.** Emby's stock apps have no personal star-rating UI (confirmed with an Emby
+moderator — "There is none currently"), so the rating half of `UserDataSaved` has nothing to
+trigger it in practice. Favoriting an item, however, is a real native Emby feature, and Emby's
+`UserDataSaveReason` enum has no dedicated value for it — favoriting/unfavoriting just shows up as
+a `UserDataSaved` fire (often alongside unrelated saves, like every playback-progress tick, which
+also carry the item's current favorite state even when unchanged).
+[`Scrobbling/FavoriteStateTracker.cs`](Emby.Plugin.WeTrakr/Scrobbling/FavoriteStateTracker.cs)
+tracks the last-known `IsFavorite` per (user, item) and only dispatches on an actual transition, so
+favorites sync correctly without depending on knowing which internal reason Emby happens to report.
+
+**Watched-history scheduled sync (Emby → WeTrakr only).** A native Emby scheduled task,
+[`Scrobbling/SyncToWeTrakrTask.cs`](Emby.Plugin.WeTrakr/Scrobbling/SyncToWeTrakrTask.cs), shows up
+in Dashboard → Scheduled Tasks as "Sync WeTrakr watched history" (category "WeTrakr"). It has no
+default trigger — same as Trakt's own scheduled tasks — so it only runs when you add a recurring
+trigger yourself or click "Run Now". For each user with the **"Update WeTrakr watched history
+during scheduled sync"** toggle on, it walks their library and sends an `ItemMarkedPlayed` event
+(the same event live watched-toggles use, with `save_reason: "ScheduledSync"`) for every
+already-`Played` Movie/Episode not under an excluded folder. Excluded folders are configured per
+user on the config page, populated from Emby's own `ApiClient.getVirtualFolders`, mirroring
+Trakt's `LocationsExcluded`.
+
+This is a one-way backfill, not a real sync: **there is no WeTrakr → Emby pull direction yet.**
+"Skip unwatched import" and "update Emby from WeTrakr's watched list" (both requested) depend on
+WeTrakr exposing a read API for a user's watched history, which — as of 2026-07 — doesn't appear to
+exist yet (wetrakr.com's own "Import one time: Jellyfin history → WeTrakr" button, the *opposite*
+write direction, is itself still labeled "coming soon"). Implementing the pull direction without a
+confirmed backend contract risks the same wrong-wire-format bugs the pairing flow hit twice before
+being fixed — so it's deliberately not built until that's confirmed.
+
+There's also no bulk-import API on WeTrakr's side, so the scheduled task sends one webhook POST per
+watched item — same endpoint live scrobbles use — throttled with a 400ms delay between sends.
+WeTrakr's device-code endpoints showed aggressive rate limiting (`429`) under light manual testing
+during development, so a large library's first sync will take a while, and a per-user run stops
+early if WeTrakr rejects the token (`401`/`403`) partway through. Revisit this once/if WeTrakr
+exposes a real bulk history-import endpoint.
 
 ### Why this plugin identifies as `platform=jellyfin`
 

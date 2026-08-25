@@ -53,6 +53,10 @@ namespace Emby.Plugin.WeTrakr.Api
         public bool? ScrobblePlaying { get; set; }
         public bool? ScrobbleWatched { get; set; }
         public bool? ScrobbleRatings { get; set; }
+        public bool? SyncWatchedHistory { get; set; }
+
+        /// <summary>Full replacement list when present (not merged) — the config page always sends its complete checkbox selection.</summary>
+        public string[] LocationsExcluded { get; set; }
     }
 
     /// <summary>
@@ -83,6 +87,8 @@ namespace Emby.Plugin.WeTrakr.Api
         public bool ScrobblePlaying { get; set; }
         public bool ScrobbleWatched { get; set; }
         public bool ScrobbleRatings { get; set; }
+        public bool SyncWatchedHistory { get; set; }
+        public string[] LocationsExcluded { get; set; } = Array.Empty<string>();
         public DateTime? LastScrobbleAt { get; set; }
         public long ScrobbleCount { get; set; }
     }
@@ -187,12 +193,14 @@ namespace Emby.Plugin.WeTrakr.Api
                 ScrobblePlaying = userConfig.ScrobblePlaying,
                 ScrobbleWatched = userConfig.ScrobbleWatched,
                 ScrobbleRatings = userConfig.ScrobbleRatings,
+                SyncWatchedHistory = userConfig.SyncWatchedHistory,
+                LocationsExcluded = userConfig.LocationsExcluded ?? Array.Empty<string>(),
                 LastScrobbleAt = userConfig.LastScrobbleAt,
                 ScrobbleCount = userConfig.ScrobbleCount
             };
         }
 
-        /// <summary>Updates one or more boolean settings for this user. Unset fields are left unchanged.</summary>
+        /// <summary>Updates one or more settings for this user. Unset fields are left unchanged.</summary>
         public void Post(UpdateSettingsRequest request)
         {
             var cfg = RequireConfig();
@@ -202,6 +210,8 @@ namespace Emby.Plugin.WeTrakr.Api
             if (request.ScrobblePlaying.HasValue) userConfig.ScrobblePlaying = request.ScrobblePlaying.Value;
             if (request.ScrobbleWatched.HasValue) userConfig.ScrobbleWatched = request.ScrobbleWatched.Value;
             if (request.ScrobbleRatings.HasValue) userConfig.ScrobbleRatings = request.ScrobbleRatings.Value;
+            if (request.SyncWatchedHistory.HasValue) userConfig.SyncWatchedHistory = request.SyncWatchedHistory.Value;
+            if (request.LocationsExcluded != null) userConfig.LocationsExcluded = request.LocationsExcluded;
 
             Plugin.Instance.SaveConfiguration();
         }

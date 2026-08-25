@@ -35,6 +35,8 @@ namespace Emby.Plugin.WeTrakr.Configuration
             ScrobblePlaying = true;
             ScrobbleWatched = true;
             ScrobbleRatings = true;
+            SyncWatchedHistory = true;
+            LocationsExcluded = Array.Empty<string>();
             LastScrobbleAt = null;
             ScrobbleCount = 0;
         }
@@ -63,6 +65,21 @@ namespace Emby.Plugin.WeTrakr.Configuration
 
         /// <summary>Send UserDataSaved (ratings/favorites) events (reserved for plugin v3).</summary>
         public bool ScrobbleRatings { get; set; }
+
+        /// <summary>
+        /// Whether the "Sync WeTrakr watched history" scheduled task should push this
+        /// user's already-watched library items to WeTrakr. Separate from
+        /// ScrobbleWatched, which covers live "mark as watched" toggles — this covers
+        /// bulk backfill of pre-existing watched status.
+        /// </summary>
+        public bool SyncWatchedHistory { get; set; }
+
+        /// <summary>
+        /// Library folder paths excluded from the watched-history sync scheduled task,
+        /// e.g. home videos the user doesn't want reflected on WeTrakr. Matches Trakt's
+        /// LocationsExcluded — a top-level media folder path per entry.
+        /// </summary>
+        public string[] LocationsExcluded { get; set; }
 
         public DateTime? LastScrobbleAt { get; set; }
 

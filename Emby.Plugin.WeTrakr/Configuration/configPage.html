@@ -134,6 +134,25 @@
           </div>
         </div>
 
+        <div class="checkboxContainer checkboxContainer-withDescription">
+          <label>
+            <input type="checkbox" is="emby-checkbox" id="wtToggleSyncHistory" />
+            <span>Update WeTrakr watched history during scheduled sync</span>
+          </label>
+          <div class="fieldDescription checkboxFieldDescription">
+            Pushes your already-watched movies and episodes to WeTrakr when the
+            "Sync WeTrakr watched history" scheduled task runs (Dashboard → Scheduled Tasks →
+            WeTrakr — set a recurring schedule there, or run it on demand). This is a one-way
+            backfill of existing watched status, separate from the live "mark as watched" event
+            above.
+          </div>
+        </div>
+
+        <div>
+          <h3 class="checkboxListLabel">Exclude folders from watched-history sync:</h3>
+          <div id="wtLocations" class="paperList checkboxList checkboxList-paperList"></div>
+        </div>
+
         <br/>
 
         <button is="emby-button" type="button" class="button" id="wtDisconnectBtn">
