@@ -84,6 +84,13 @@
                         </label>
                         <div class="fieldDescription checkboxFieldDescription">Catches up on plays the live updates missed (for example while the server was offline). It starts from the moment you turn it on: what you watched in Emby before is not copied over, and a sync that finds a suspiciously large number of new plays at once sends none of them. Only items WeTrakr does not already list are sent, so nothing is counted twice.</div>
                     </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" class="syncFavorites" />
+                            <span>Sync favorite movies</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Favoriting a movie in Emby favorites it on WeTrakr right away, and a sync brings favorites from WeTrakr into Emby. Movies only - WeTrakr has no way for this plugin to address a favorited show or episode. Off by default.</div>
+                    </div>
                 </div>
                 <div class="syncSection">
                     <button is="emby-button" type="button" class="btnSync raised block"><span>Sync now</span></button>

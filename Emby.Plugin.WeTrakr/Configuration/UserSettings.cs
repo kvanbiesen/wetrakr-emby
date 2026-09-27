@@ -15,6 +15,7 @@ namespace Emby.Plugin.WeTrakr.Configuration
             minLength = 5;
             syncPull = true;
             syncPush = true;
+            syncFavorites = false;
             autoSync = false;
             autoSyncHours = 24;
             excludedLibraries = new string[0];
@@ -31,6 +32,14 @@ namespace Emby.Plugin.WeTrakr.Configuration
 
         /// <summary>A sync run sends what Emby has as watched to WeTrakr.</summary>
         public bool syncPush { get; set; }
+
+        /// <summary>
+        /// Favorite movies are mirrored both ways: favoriting one in Emby favorites it on WeTrakr (live,
+        /// the moment it happens) and a sync run brings favorites from WeTrakr into Emby. Off by default.
+        /// Movies only - WeTrakr addresses a favorited show or episode by its own internal id, which Emby
+        /// has no way to know, so those cannot be sent or read here.
+        /// </summary>
+        public bool syncFavorites { get; set; }
 
         /// <summary>The scheduled task runs a sync for this user on its own.</summary>
         public bool autoSync { get; set; }
@@ -77,6 +86,7 @@ namespace Emby.Plugin.WeTrakr.Configuration
             cursorEpisodes = "";
             cursorShows = "";
             pushedAt = "";
+            favoritesSyncedAt = "";
             resumeTarget = "";
             resumePage = 0;
         }
@@ -102,6 +112,9 @@ namespace Emby.Plugin.WeTrakr.Configuration
 
         /// <summary>End of the last run that sent Emby history; only plays newer than this are considered next time.</summary>
         public string pushedAt { get; set; }
+
+        /// <summary>Start of the last run that read favorites; only WeTrakr favorites changed since are read next time.</summary>
+        public string favoritesSyncedAt { get; set; }
 
         /// <summary>Where an interrupted full read resumes ("movies" or "episodes"), so a daily quota does not restart it.</summary>
         public string resumeTarget { get; set; }

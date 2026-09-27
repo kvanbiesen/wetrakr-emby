@@ -105,6 +105,7 @@ define([
             minLength: isNaN(minLength) ? 5 : Math.max(0, minLength),
             syncPull: view.querySelector(".syncPull").checked,
             syncPush: view.querySelector(".syncPush").checked,
+            syncFavorites: view.querySelector(".syncFavorites").checked,
             excludedLibraries: excluded,
             autoSync: view.querySelector(".autoSync").checked,
             autoSyncHours: parseInt(view.querySelector(".autoSyncHours").value, 10) || 24
@@ -121,6 +122,7 @@ define([
         view.querySelector(".minLength").value = options.minLength === undefined || options.minLength === null ? 5 : options.minLength;
         view.querySelector(".syncPull").checked = options.syncPull !== false;
         view.querySelector(".syncPush").checked = options.syncPush !== false;
+        view.querySelector(".syncFavorites").checked = options.syncFavorites === true;
         view.querySelector(".autoSync").checked = options.autoSync === true;
         view.querySelector(".autoSyncHours").value = String(options.autoSyncHours || 24);
         view.querySelector(".autoSyncInterval").classList.toggle("hide", options.autoSync !== true);
@@ -363,13 +365,14 @@ define([
 
     function confirmSync(instance, reset) {
         var form = readForm(instance.view);
-        if (!form.syncPull && !form.syncPush) {
-            alert("Turn on importing from WeTrakr or sending new Emby plays first.");
+        if (!form.syncPull && !form.syncPush && !form.syncFavorites) {
+            alert("Turn on importing from WeTrakr, sending new Emby plays, or syncing favorites first.");
             return;
         }
         var parts = [];
         if (form.syncPull) parts.push("marks what you watched on WeTrakr as played in Emby");
         if (form.syncPush) parts.push("sends new plays from Emby that WeTrakr is missing");
+        if (form.syncFavorites) parts.push("brings favorite movies in from WeTrakr");
         confirm({
             title: reset ? "Reset and sync everything again" : "Sync now",
             text: "This " + parts.join(" and ") + ". " + (reset
@@ -449,7 +452,7 @@ define([
             // the on-screen edits are carried along with the switch
             saveOptions(instance, function (options) { applyForm(options, form); }).then(function (saved) {
                 if (!saved) { toggle.checked = !checked; view.querySelector(".autoSyncInterval").classList.toggle("hide", checked); }
-                else if (checked && (form.syncPull || form.syncPush)) startSync(instance, false, true);
+                else if (checked && (form.syncPull || form.syncPush || form.syncFavorites)) startSync(instance, false, true);
             });
         });
 

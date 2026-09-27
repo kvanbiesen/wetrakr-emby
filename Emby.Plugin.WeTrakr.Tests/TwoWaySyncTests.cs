@@ -13,7 +13,7 @@ namespace Emby.Plugin.WeTrakr.Tests
         private static string Json(TrackingBody body) { return JsonSerializer.Serialize(body, WeTrakrApi.JsonOptions); }
 
         [Fact]
-        public void A_single_episode_is_removed_by_its_own_id_with_nothing_around_it()
+        public void A_single_episode_is_removed_by_show_season_and_number_with_no_date_or_show_status()
         {
             int skipped;
             var body = TrackingBuilder.BuildRemoval(new[]
@@ -22,8 +22,10 @@ namespace Emby.Plugin.WeTrakr.Tests
             }, out skipped);
 
             Assert.Equal(0, skipped);
-            // no show, no season, no list status for a show and no date: it can only name that one play (the latest)
-            Assert.Equal("{\"episodes\":[{\"ids\":{\"tvdb\":349232},\"status\":\"watched\"}]}", Json(body));
+            // WeTrakr's top-level "episodes" field only takes its own internal id, which Emby never has, so the
+            // episode is nested under its show and season instead, exactly like adding one; no tracked_at and no
+            // show status, so it can only name that one play (the latest) and nothing wider
+            Assert.Equal("{\"shows\":[{\"ids\":{\"tmdb\":1399},\"seasons\":[{\"number\":1,\"episodes\":[{\"number\":1,\"status\":\"watched\"}]}]}]}", Json(body));
         }
 
         [Fact]
@@ -35,12 +37,12 @@ namespace Emby.Plugin.WeTrakr.Tests
         }
 
         [Fact]
-        public void An_episode_without_an_external_id_is_left_alone_not_guessed_at()
+        public void An_episode_whose_show_has_no_external_id_is_left_alone_not_guessed_at()
         {
             int skipped;
             var body = TrackingBuilder.BuildRemoval(new[]
             {
-                new WatchedItem { IsEpisode = true, EpisodeIds = new IdSet(), ShowIds = new IdSet { Tmdb = "1399" }, Season = 1, Number = 1 }
+                new WatchedItem { IsEpisode = true, EpisodeIds = new IdSet { Tvdb = "349232" }, ShowIds = new IdSet(), Season = 1, Number = 1 }
             }, out skipped);
 
             Assert.Equal(1, skipped);
@@ -58,16 +60,20 @@ namespace Emby.Plugin.WeTrakr.Tests
         }
 
         [Fact]
-        public void Episodes_by_id_are_counted_and_survive_batching()
+        public void Removing_several_episodes_of_the_same_show_and_season_nests_them_under_one_entry()
         {
-            var body = new TrackingBody
+            int skipped;
+            var body = TrackingBuilder.BuildRemoval(new[]
             {
-                Episodes = Enumerable.Range(1, 12).Select(i => new TrackingEpisodeById { Ids = new IdSet { Tvdb = i.ToString() }, Status = "watched" }).ToList()
-            };
-            Assert.Equal(12, TrackingBuilder.Count(body));
-            var parts = TrackingBatcher.Split(body, 5, TrackingBatcher.MaxBytes).ToList();
-            Assert.Equal(3, parts.Count);
-            Assert.Equal(12, parts.Sum(p => p.Episodes.Count));
+                new WatchedItem { IsEpisode = true, ShowIds = new IdSet { Tmdb = "1399" }, Season = 1, Number = 1 },
+                new WatchedItem { IsEpisode = true, ShowIds = new IdSet { Tmdb = "1399" }, Season = 1, Number = 2 }
+            }, out skipped);
+
+            Assert.Equal(0, skipped);
+            Assert.Equal(2, TrackingBuilder.Count(body));
+            Assert.Single(body.Shows);
+            Assert.Single(body.Shows[0].Seasons);
+            Assert.Equal(2, body.Shows[0].Seasons[0].Episodes.Count);
         }
     }
 

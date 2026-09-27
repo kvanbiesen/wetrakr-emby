@@ -145,16 +145,20 @@ namespace Emby.Plugin.WeTrakr.Services
         }
 
         /// <summary>
-        /// Body for taking single plays off the history (POST /sync/tracking/remove). Nothing is nested under a show
-        /// and no list status is sent for one, so it can only ever name the play itself: an episode is addressed by its
-        /// own external id, and no tracked_at is sent, which makes WeTrakr remove the latest play. An episode with no
-        /// external id is counted in skipped rather than guessed at.
+        /// Body for taking single plays off the history (POST /sync/tracking/remove). No tracked_at is sent, which
+        /// makes WeTrakr remove only the latest play of each item named - never the whole history of a season or
+        /// show. A movie is addressed by its own external id, same as adding one. WeTrakr's top-level "episodes"
+        /// field only takes its own internal id (which Emby has no way to know), so an episode is nested under its
+        /// show and season by number instead, exactly like adding one - just scoped to the one episode being
+        /// removed rather than a whole season or show. An item with no usable id is counted in skipped rather than
+        /// guessed at.
         /// </summary>
         public static TrackingBody BuildRemoval(IEnumerable<WatchedItem> items, out int skipped)
         {
             skipped = 0;
             var movies = new List<TrackingMovie>();
-            var episodes = new List<TrackingEpisodeById>();
+            var shows = new Dictionary<string, TrackingShow>();
+            var showOrder = new List<string>();
 
             foreach (var item in items)
             {
@@ -166,18 +170,39 @@ namespace Emby.Plugin.WeTrakr.Services
                     continue;
                 }
 
-                var episodeId = PickEpisodeId(item.EpisodeIds);
-                if (episodeId == null) { skipped++; continue; }
-                episodes.Add(new TrackingEpisodeById { Ids = episodeId, Status = Watched });
+                var showId = PickShowId(item.ShowIds);
+                if (showId == null || item.Number <= 0 || item.Season < 0) { skipped++; continue; }
+
+                var showKey = Key(showId);
+                TrackingShow show;
+                if (!shows.TryGetValue(showKey, out show))
+                {
+                    show = new TrackingShow { Ids = showId, Seasons = new List<TrackingSeason>() };
+                    shows[showKey] = show;
+                    showOrder.Add(showKey);
+                }
+
+                var season = show.Seasons.FirstOrDefault(s => s.Number == item.Season);
+                if (season == null)
+                {
+                    season = new TrackingSeason { Number = item.Season, Episodes = new List<TrackingEpisode>() };
+                    show.Seasons.Add(season);
+                }
+                if (!season.Episodes.Any(ep => ep.Number == item.Number))
+                    season.Episodes.Add(new TrackingEpisode { Number = item.Number, Status = Watched });
             }
 
-            return new TrackingBody { Movies = movies.Count > 0 ? movies : null, Episodes = episodes.Count > 0 ? episodes : null };
+            return new TrackingBody
+            {
+                Movies = movies.Count > 0 ? movies : null,
+                Shows = showOrder.Count > 0 ? showOrder.Select(k => shows[k]).ToList() : null
+            };
         }
 
         /// <summary>Number of plays a body carries (movies plus episodes; the limit WeTrakr applies per call).</summary>
         public static int Count(TrackingBody body)
         {
-            var count = (body.Movies?.Count ?? 0) + (body.Episodes?.Count ?? 0);
+            var count = body.Movies?.Count ?? 0;
             if (body.Shows != null)
             {
                 foreach (var show in body.Shows)
@@ -214,12 +239,6 @@ namespace Emby.Plugin.WeTrakr.Services
                 batch.AddMovie(movie);
             }
 
-            foreach (var episode in body.Episodes ?? new List<TrackingEpisodeById>())
-            {
-                if (batch.Full(1, EpisodeBytes)) yield return batch.Take();
-                batch.AddEpisodeById(episode);
-            }
-
             foreach (var show in body.Shows ?? new List<TrackingShow>())
             {
                 foreach (var season in show.Seasons ?? new List<TrackingSeason>())
@@ -241,7 +260,6 @@ namespace Emby.Plugin.WeTrakr.Services
             private readonly int _maxBytes;
             private List<TrackingMovie> _movies = new List<TrackingMovie>();
             private List<TrackingShow> _shows = new List<TrackingShow>();
-            private List<TrackingEpisodeById> _episodesById = new List<TrackingEpisodeById>();
             private readonly Dictionary<TrackingShow, TrackingShow> _showCopies = new Dictionary<TrackingShow, TrackingShow>();
             private readonly Dictionary<TrackingSeason, TrackingSeason> _seasonCopies = new Dictionary<TrackingSeason, TrackingSeason>();
             private int _items;
@@ -277,13 +295,6 @@ namespace Emby.Plugin.WeTrakr.Services
                 _bytes += MovieBytes;
             }
 
-            public void AddEpisodeById(TrackingEpisodeById episode)
-            {
-                _episodesById.Add(episode);
-                _items++;
-                _bytes += EpisodeBytes;
-            }
-
             public void AddEpisode(TrackingShow show, TrackingSeason season, TrackingEpisode episode)
             {
                 TrackingShow showCopy;
@@ -314,12 +325,10 @@ namespace Emby.Plugin.WeTrakr.Services
                 var body = new TrackingBody
                 {
                     Movies = _movies.Count > 0 ? _movies : null,
-                    Shows = _shows.Count > 0 ? _shows : null,
-                    Episodes = _episodesById.Count > 0 ? _episodesById : null
+                    Shows = _shows.Count > 0 ? _shows : null
                 };
                 _movies = new List<TrackingMovie>();
                 _shows = new List<TrackingShow>();
-                _episodesById = new List<TrackingEpisodeById>();
                 _showCopies.Clear();
                 _seasonCopies.Clear();
                 _items = 0;

@@ -20,13 +20,15 @@ scrobbling and watched-history sync, per user.
 - **Per user, opt-in** — every Emby user connects their own WeTrakr account with a short sign-in
   code. Nobody, including the server admin, ever sees anyone's WeTrakr password. An admin can also
   switch WeTrakr off for a specific user.
+- **Favorite movies, mirrored both ways** — favoriting a movie in Emby favorites it on WeTrakr
+  right away, and a sync brings favorites from WeTrakr into Emby. Off by default. Movies only:
+  WeTrakr has no way for this plugin to address a favorited show or episode.
 - **Exclude libraries** — keep specific libraries (home videos, kids' content, etc.) out of
   WeTrakr entirely.
 - **Admin overview** — see who's connected and manage any user's settings from one place in
   Dashboard → Plugins → WeTrakr.
 
-Ratings, favorites and lists aren't part of this plugin — Emby has no personal rating feature to
-sync from.
+Ratings and lists aren't part of this plugin — Emby has no personal rating feature to sync from.
 
 ## Install
 

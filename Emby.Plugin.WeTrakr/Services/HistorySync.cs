@@ -78,6 +78,7 @@ namespace Emby.Plugin.WeTrakr.Services
             public int MoviesMarked, EpisodesMarked, AlreadyPlayed, Refreshed, MoviesMissing, EpisodesMissing;
             public int MoviesSent, EpisodesSent, NotFound, Skipped, PushOverLimit;
             public bool PushBaselined;
+            public int FavoritesMarked, FavoritesMissing;
         }
 
         private static readonly ConcurrentDictionary<long, RunInfo> Runs = new ConcurrentDictionary<long, RunInfo>();
@@ -149,6 +150,7 @@ namespace Emby.Plugin.WeTrakr.Services
                 var pushedBefore = !string.IsNullOrEmpty(state.pushedAt);
 
                 if (plan.Read) await Read(job, run, state, plan.Full, ct).ConfigureAwait(false);
+                if (options.syncFavorites) await ReadFavorites(job, run, state, ct).ConfigureAwait(false);
                 if (options.syncPush) await Send(job, run, state, pushedBefore, ct).ConfigureAwait(false);
 
                 SyncLogic.Remember(state, now);
@@ -208,6 +210,7 @@ namespace Emby.Plugin.WeTrakr.Services
                 state.cursorEpisodes = "";
                 state.cursorShows = "";
                 state.pushedAt = "";
+                state.favoritesSyncedAt = "";
                 state.resumeTarget = "";
                 state.resumePage = 0;
             }
@@ -359,6 +362,46 @@ namespace Emby.Plugin.WeTrakr.Services
             return true;
         }
 
+        // ---------------------------------------------------------------- WeTrakr -> Emby (favorites)
+
+        // WeTrakr -> Emby only: a favorite toggled in Emby is already sent live by FavoritesSync, so a
+        // run only needs to bring favorites the other way in. Like the watched pull, this never
+        // unfavorites anything in Emby - an incremental read also returns recent unfavorites (so WeTrakr
+        // can tell a caller something changed), and those are simply skipped rather than applied. Its own
+        // cursor (favoritesSyncedAt) keeps this independent of the watched-history cursors above.
+        private async Task ReadFavorites(Job job, RunInfo run, SyncState state, CancellationToken ct)
+        {
+            var from = string.IsNullOrEmpty(state.favoritesSyncedAt) ? null : state.favoritesSyncedAt;
+            var startedAt = SyncLogic.Stamp(DateTime.UtcNow);
+            var index = Index(job, ct);
+            var page = 1;
+
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                run.Message = "Reading favorite movies from WeTrakr (page " + page + ")...";
+                var result = await _api.GetFavoritesPage(job.User.InternalId, page, from, ct).ConfigureAwait(false);
+
+                foreach (var entry in result.Entries)
+                {
+                    if (entry.Interactions?.Favorite?.Value != true) continue;
+                    var movie = index.FindMovie(entry.Ids);
+                    if (movie == null) { job.FavoritesMissing++; continue; }
+
+                    var data = _userData.GetUserData(job.User, movie);
+                    if (data.IsFavorite) continue;
+                    data.IsFavorite = true;
+                    _userData.SaveUserData(job.User, movie, data, UserDataSaveReason.Import, CancellationToken.None);
+                    job.FavoritesMarked++;
+                }
+
+                if (page >= result.PageCount) break;
+                page++;
+            }
+
+            state.favoritesSyncedAt = startedAt;
+        }
+
         // ---------------------------------------------------------------- Emby -> WeTrakr
 
         // Emby -> WeTrakr catch-up: plays that changed in Emby since the last sync and that WeTrakr does not already list.
@@ -453,7 +496,7 @@ namespace Emby.Plugin.WeTrakr.Services
             if (!ConfigurationFactory.IsConnected(_users, user.InternalId)) return "Connect to WeTrakr first.";
 
             var options = ConfigurationFactory.LoadOptions(_users, user.InternalId);
-            if (!options.syncPull && !options.syncPush) return "Turn on importing from WeTrakr or sending new Emby plays first.";
+            if (!options.syncPull && !options.syncPush && !options.syncFavorites) return "Turn on importing from WeTrakr, sending new Emby plays, or syncing favorites first.";
             return manual ? Cooldown(user) : null;
         }
 
@@ -510,6 +553,11 @@ namespace Emby.Plugin.WeTrakr.Services
                 else parts.Add("Sent " + job.MoviesSent + " movies and " + job.EpisodesSent + " episodes to WeTrakr"
                     + (job.NotFound > 0 ? " (" + job.NotFound + " not found there)" : "")
                     + (job.Skipped > 0 ? " (" + job.Skipped + " skipped: no usable ids)" : "") + ".");
+            }
+            if (options.syncFavorites)
+            {
+                parts.Add("Marked " + job.FavoritesMarked + " movies as favorite in Emby from WeTrakr"
+                    + (job.FavoritesMissing > 0 ? " (" + job.FavoritesMissing + " not in your library)" : "") + ".");
             }
             return string.Join(" ", parts);
         }

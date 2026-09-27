@@ -118,4 +118,36 @@ namespace Emby.Plugin.WeTrakr.Tests
             Assert.Equal("r2", refresh.EffectiveRefreshToken);
         }
     }
+
+    public class FavoritesShapeTests
+    {
+        [Fact]
+        public void Favoriting_a_movie_sends_only_its_id()
+        {
+            var body = new FavoritesBody { Movies = new List<FavoriteMovie> { new FavoriteMovie { Ids = new IdSet { Tmdb = "105" } } } };
+            Assert.Equal("{\"movies\":[{\"ids\":{\"tmdb\":105}}]}", JsonSerializer.Serialize(body, WeTrakrApi.JsonOptions));
+        }
+
+        [Fact]
+        public void A_favorites_list_entry_is_read_ids_and_all()
+        {
+            // WeTrakr's own documented example of a GET /sync/favorites/{target} entry
+            const string json = "{\"id\":120,\"type\":\"movie\",\"title\":\"Back to the Future\",\"release_date\":\"1985-07-03T12:00:00.000Z\","
+                + "\"poster_path\":\"/fNOH9f1aA7XRTzl1sAOx9iF553Q.jpg\",\"ids\":{\"tmdb\":105,\"imdb\":\"tt0088763\"},"
+                + "\"interactions\":{\"counter\":{\"comments\":21,\"favorites\":40,\"lists\":900},\"favorite\":{\"value\":true,\"why\":\"The perfect adventure movie.\"}}}";
+
+            var entry = JsonSerializer.Deserialize<FavoriteEntry>(json, WeTrakrApi.JsonOptions);
+            Assert.Equal("Back to the Future", entry.Title);
+            Assert.Equal("105", entry.Ids.Tmdb);
+            Assert.True(entry.Interactions.Favorite.Value);
+        }
+
+        [Fact]
+        public void An_unfavorited_entry_reads_as_not_favorite()
+        {
+            const string json = "{\"id\":120,\"type\":\"movie\",\"ids\":{\"tmdb\":105},\"interactions\":{\"favorite\":{\"value\":false}}}";
+            var entry = JsonSerializer.Deserialize<FavoriteEntry>(json, WeTrakrApi.JsonOptions);
+            Assert.False(entry.Interactions.Favorite.Value);
+        }
+    }
 }

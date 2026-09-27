@@ -39,6 +39,12 @@ namespace Emby.Plugin.WeTrakr.Api
         public int PageCount { get; set; } = 1;
     }
 
+    public class FavoritePage
+    {
+        public List<FavoriteEntry> Entries { get; set; } = new List<FavoriteEntry>();
+        public int PageCount { get; set; } = 1;
+    }
+
     /// <summary>
     /// The WeTrakr public API: app key and version headers on every call, the user's
     /// OAuth token on user calls (refreshed when it is about to lapse or WeTrakr says 401),
@@ -210,6 +216,34 @@ namespace Emby.Plugin.WeTrakr.Api
         public Task<TrackingResult> RemoveTracking(long userId, TrackingBody body, CancellationToken ct)
         {
             return PostJson<TrackingResult>(userId, "/sync/tracking/remove", body, ct);
+        }
+
+        // ---------------------------------------------------------------- favorites
+
+        /// <summary>One page of the user's favorite movies, most recent first.</summary>
+        public async Task<FavoritePage> GetFavoritesPage(long userId, int page, string fromDate, CancellationToken ct)
+        {
+            var path = "/sync/favorites/movies?limit=100&page=" + page.ToString(CultureInfo.InvariantCulture)
+                + (string.IsNullOrEmpty(fromDate) ? "" : "&from_date=" + Uri.EscapeDataString(fromDate));
+            var reply = await Authed(userId, "GET", path, null, true, ct).ConfigureAwait(false);
+            EnsureOk(reply);
+
+            var result = new FavoritePage { Entries = Read<List<FavoriteEntry>>(reply) ?? new List<FavoriteEntry>() };
+            string count;
+            int parsed;
+            if (reply.Headers.TryGetValue("X-Pagination-Page-Count", out count) && int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed)) result.PageCount = Math.Max(1, parsed);
+            else result.PageCount = result.Entries.Count >= 100 ? page + 1 : page;
+            return result;
+        }
+
+        public Task<TrackingResult> AddFavorites(long userId, FavoritesBody body, CancellationToken ct)
+        {
+            return PostJson<TrackingResult>(userId, "/sync/favorites", body, ct);
+        }
+
+        public Task<TrackingResult> RemoveFavorites(long userId, FavoritesBody body, CancellationToken ct)
+        {
+            return PostJson<TrackingResult>(userId, "/sync/favorites/remove", body, ct);
         }
 
         // ---------------------------------------------------------------- plumbing

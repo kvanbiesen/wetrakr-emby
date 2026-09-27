@@ -127,19 +127,13 @@ namespace Emby.Plugin.WeTrakr.Api
         [JsonPropertyName("movies")] public List<TrackingMovie> Movies { get; set; }
         [JsonPropertyName("shows")] public List<TrackingShow> Shows { get; set; }
 
-        /// <summary>Episodes addressed by their own external id, with no show around them. Used to remove a single play.</summary>
-        [JsonPropertyName("episodes")] public List<TrackingEpisodeById> Episodes { get; set; }
+        // WeTrakr also documents a top-level "episodes" field addressed by its own internal episode id, with no
+        // show around it, but Emby has no way to know that id for an episode it has never round-tripped, so
+        // nothing in this plugin sends one; an episode is instead always nested under its show and season, by
+        // number, in Shows.
     }
 
     public class TrackingMovie
-    {
-        [JsonPropertyName("ids")] public IdSet Ids { get; set; }
-        [JsonPropertyName("status")] public string Status { get; set; }
-        [JsonPropertyName("tracked_at")] public string TrackedAt { get; set; }
-    }
-
-    /// <summary>An episode named by one of its own external ids (tmdb, imdb or tvdb) rather than by show, season and number.</summary>
-    public class TrackingEpisodeById
     {
         [JsonPropertyName("ids")] public IdSet Ids { get; set; }
         [JsonPropertyName("status")] public string Status { get; set; }
@@ -193,6 +187,38 @@ namespace Emby.Plugin.WeTrakr.Api
     public class CountBlock
     {
         [JsonPropertyName("total")] public int Total { get; set; }
+    }
+
+    // ---- favorites (POST /sync/favorites, POST /sync/favorites/remove, GET /sync/favorites/{target}) ----
+    // Movies only: WeTrakr addresses a show, season or episode favorite by its own internal id, which
+    // Emby has no way to know, so this plugin only ever sends and reads movies here.
+
+    public class FavoritesBody
+    {
+        [JsonPropertyName("movies")] public List<FavoriteMovie> Movies { get; set; }
+    }
+
+    public class FavoriteMovie
+    {
+        [JsonPropertyName("ids")] public IdSet Ids { get; set; }
+    }
+
+    /// <summary>One entry of GET /sync/favorites/{target}: a compact media object with the user's favorite state.</summary>
+    public class FavoriteEntry
+    {
+        [JsonPropertyName("title")] public string Title { get; set; }
+        [JsonPropertyName("ids")] public IdSet Ids { get; set; }
+        [JsonPropertyName("interactions")] public FavoriteInteractions Interactions { get; set; }
+    }
+
+    public class FavoriteInteractions
+    {
+        [JsonPropertyName("favorite")] public FavoriteValue Favorite { get; set; }
+    }
+
+    public class FavoriteValue
+    {
+        [JsonPropertyName("value")] public bool Value { get; set; }
     }
 
     // ---- reads ----
