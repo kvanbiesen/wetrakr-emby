@@ -3,8 +3,8 @@
     "category": "General",
     "guid": "f473634f-caf9-4a27-9323-2813fa0e0eaf",
     "name": "WeTrakr",
-    "description": "Automatic scrobbling to your WeTrakr profile. Sends playback events (start, progress, pause, resume, stop) to your WeTrakr account in real time. One-click pairing via device code.",
-    "overview": "Automatic scrobbling to your WeTrakr profile.",
+    "description": "Scrobbles what you watch to WeTrakr and keeps your watched history in sync, per Emby user. Play, pause and stop are reported as they happen; manual mark-as-played is mirrored; watched history can be imported from and sent to WeTrakr, automatically if you like. Connect with a short code, no password shared.",
+    "overview": "Scrobble to WeTrakr and sync watched history, per Emby user.",
     "owner": "wetrakr",
     "imageUrl": "https://raw.githubusercontent.com/wetrakr/wetrakr-emby/main/branding/thumbnail.png",
     "versions": []

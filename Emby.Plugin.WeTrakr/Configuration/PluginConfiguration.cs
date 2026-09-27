@@ -1,88 +1,82 @@
-using System;
+using System.Collections.Generic;
+using MediaBrowser.Common.Configuration;
+using MediaBrowser.Controller.Configuration;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Plugins;
 
 namespace Emby.Plugin.WeTrakr.Configuration
 {
+    /// <summary>
+    /// Server-wide settings. Everything a user chooses (options, login, sync state)
+    /// lives in Emby's per-user typed settings instead, see <see cref="ConfigurationFactory"/>.
+    /// </summary>
     public class PluginConfiguration : BasePluginConfiguration
     {
         public PluginConfiguration()
         {
             ApiBaseUrl = "https://api.wetrakr.com";
-            Users = Array.Empty<WeTrakrUserConfig>();
         }
 
-        /// <summary>
-        /// Base URL of the WeTrakr API. Default: https://api.wetrakr.com. Advanced users
-        /// who self-host WeTrakr can override this. Shared across all paired users.
-        /// </summary>
+        /// <summary>Base URL of the WeTrakr API. Only changed to point at a test server.</summary>
         public string ApiBaseUrl { get; set; }
-
-        /// <summary>
-        /// One entry per Emby user who has paired their own WeTrakr account. Emby is
-        /// multi-user per server, so scrobbling is opt-in per user rather than a single
-        /// server-wide connection — otherwise every household member's playback would
-        /// be sent to whichever one account an admin happened to pair first.
-        /// </summary>
-        public WeTrakrUserConfig[] Users { get; set; }
     }
 
-    public class WeTrakrUserConfig
+    /// <summary>
+    /// Registers the per-user stores with Emby. Three keys on purpose: the page rewrites
+    /// the options whole on every save, so the login and the sync progress, which only
+    /// the server writes, sit under their own keys and can never be reverted by a save.
+    /// </summary>
+    public class ConfigurationFactory : IUserConfigurationFactory
     {
-        public WeTrakrUserConfig()
+        public const string OptionsKey = "wetrakr";
+        public const string AuthKey = "wetrakrAuth";
+        public const string SyncKey = "wetrakrSync";
+
+        public IEnumerable<ConfigurationStore> GetConfigurations()
         {
-            WebhookToken = string.Empty;
-            Username = string.Empty;
-            ScrobblePlaying = true;
-            ScrobbleWatched = true;
-            ScrobbleRatings = true;
-            SyncWatchedHistory = true;
-            LocationsExcluded = Array.Empty<string>();
-            LastScrobbleAt = null;
-            ScrobbleCount = 0;
+            return new[]
+            {
+                new ConfigurationStore { ConfigurationType = typeof(UserOptions), Key = OptionsKey },
+                new ConfigurationStore { ConfigurationType = typeof(AuthState), Key = AuthKey },
+                new ConfigurationStore { ConfigurationType = typeof(SyncState), Key = SyncKey }
+            };
         }
 
-        /// <summary>The Emby user this connection belongs to.</summary>
-        public Guid UserId { get; set; }
+        public static UserOptions LoadOptions(IUserManager users, long embyUserId)
+        {
+            return (UserOptions)users.GetTypedUserSetting(embyUserId, OptionsKey) ?? new UserOptions();
+        }
 
-        /// <summary>
-        /// Token issued by the WeTrakr device-code flow. Used as the path segment when
-        /// POSTing to /webhooks/jellyfin/{WebhookToken}. Empty when this user hasn't
-        /// paired yet.
-        /// </summary>
-        public string WebhookToken { get; set; }
+        public static AuthState LoadAuth(IUserManager users, long embyUserId)
+        {
+            return (AuthState)users.GetTypedUserSetting(embyUserId, AuthKey) ?? new AuthState();
+        }
 
-        /// <summary>
-        /// Display name of the WeTrakr user this Emby user is paired with. Shown in the
-        /// config page "Connected as" label. Not used in auth.
-        /// </summary>
-        public string Username { get; set; }
+        public static SyncState LoadSync(IUserManager users, long embyUserId)
+        {
+            return (SyncState)users.GetTypedUserSetting(embyUserId, SyncKey) ?? new SyncState();
+        }
 
-        /// <summary>Send PlaybackStart / Progress / Pause / Unpause / Stop events.</summary>
-        public bool ScrobblePlaying { get; set; }
+        public static void SaveAuth(IUserManager users, long embyUserId, AuthState value)
+        {
+            users.SetTypedUserSetting(embyUserId, AuthKey, value);
+        }
 
-        /// <summary>Send ItemMarkedPlayed events (reserved for plugin v2).</summary>
-        public bool ScrobbleWatched { get; set; }
+        public static void SaveSync(IUserManager users, long embyUserId, SyncState value)
+        {
+            users.SetTypedUserSetting(embyUserId, SyncKey, value);
+        }
 
-        /// <summary>Send UserDataSaved (ratings/favorites) events (reserved for plugin v3).</summary>
-        public bool ScrobbleRatings { get; set; }
+        /// <summary>True when the user has a stored login (it may still turn out to be revoked).</summary>
+        public static bool IsConnected(IUserManager users, long embyUserId)
+        {
+            return !string.IsNullOrEmpty(LoadAuth(users, embyUserId).refreshToken);
+        }
 
-        /// <summary>
-        /// Whether the "Sync WeTrakr watched history" scheduled task should push this
-        /// user's already-watched library items to WeTrakr. Separate from
-        /// ScrobbleWatched, which covers live "mark as watched" toggles — this covers
-        /// bulk backfill of pre-existing watched status.
-        /// </summary>
-        public bool SyncWatchedHistory { get; set; }
-
-        /// <summary>
-        /// Library folder paths excluded from the watched-history sync scheduled task,
-        /// e.g. home videos the user doesn't want reflected on WeTrakr. Matches Trakt's
-        /// LocationsExcluded — a top-level media folder path per entry.
-        /// </summary>
-        public string[] LocationsExcluded { get; set; }
-
-        public DateTime? LastScrobbleAt { get; set; }
-
-        public long ScrobbleCount { get; set; }
+        public static User FindUser(IUserManager users, long embyUserId)
+        {
+            return users.GetUserById(embyUserId);
+        }
     }
 }

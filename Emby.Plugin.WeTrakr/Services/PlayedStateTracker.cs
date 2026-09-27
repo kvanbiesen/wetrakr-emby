@@ -2,31 +2,19 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 
-namespace Emby.Plugin.WeTrakr.Scrobbling
+namespace Emby.Plugin.WeTrakr.Services
 {
     /// <summary>
-    /// Suppresses "ItemMarkedPlayed" dispatches that do not actually change the
-    /// played state of an item.
+    /// Drops "marked as played" events that do not change the played state of an item.
     ///
-    /// Emby (like Jellyfin) raises UserDataSaved with SaveReason.TogglePlayed
-    /// every time something writes the played flag, EVEN IF the value is
-    /// already the same. Ported from wetrakr-jf's PlayedStateTracker after a
-    /// confirmed production incident on that plugin: a library-wide re-mark
-    /// (e.g. from a scheduled sync task re-applying watched state) produced
-    /// 35,958 redundant events in 24h from one server, over 351 items, because
-    /// every one of them used to be forwarded — the user's watch time grew
-    /// without bound. Our own SyncToWeTrakrTask reads Played rather than
-    /// writing it, so it doesn't trigger this directly, but any other
-    /// mechanism that re-writes played state on this server would.
-    ///
-    /// This gate remembers the last played value dispatched per (user, item)
-    /// and lets an event through only when the value actually flips. The
-    /// first event for an item is always dispatched: a state we have never
-    /// seen is, as far as this plugin knows, new information.
-    ///
-    /// Real rewatches are unaffected: they arrive as PlaybackStart /
-    /// PlaybackStop, which are never gated here. Un-marking and re-marking an
-    /// item also flips the value twice, so both events are dispatched.
+    /// Emby raises UserDataSaved with SaveReason.TogglePlayed every time something writes the
+    /// played flag, even when the value is already the same, and other plugins that re-apply a
+    /// watched history over a whole library do exactly that. Adding a watched item to WeTrakr
+    /// again is another play, so each redundant event would inflate the user's history. This
+    /// gate remembers the last played value seen per (user, item) and lets an event through
+    /// only when the value flips. The first event for an item always passes: a state never seen
+    /// is new information. Real rewatches arrive as playback events and are never gated here.
+    /// The memory lives only as long as the server process.
     /// </summary>
     public class PlayedStateTracker
     {
@@ -39,9 +27,9 @@ namespace Emby.Plugin.WeTrakr.Scrobbling
         private readonly ConcurrentDictionary<string, StateEntry> _state = new ConcurrentDictionary<string, StateEntry>();
 
         /// <summary>Key for an item as seen by one user.</summary>
-        public static string KeyFor(Guid userId, Guid itemId)
+        public static string KeyFor(long userId, long itemId)
         {
-            return userId.ToString("N") + "|" + itemId.ToString("N");
+            return userId + "|" + itemId;
         }
 
         /// <summary>

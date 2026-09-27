@@ -1,0 +1,118 @@
+<div is="emby-scroller" class="view flex flex-direction-column scrollFrameY flex-grow" data-horizontal="false" data-forcescrollbar="true" data-centerfocus="true" data-bindheader="true" data-controller="__plugin/wetrakrjs" data-title="WeTrakr">
+    <div class="scrollSlider flex-grow flex-direction-column padded-left padded-left-page padded-right padded-top-page padded-bottom-page">
+
+        <form class="auto-center padded-top">
+
+            <!-- not connected -->
+            <div class="notConnected hide">
+                <h3>You are not connected to WeTrakr.</h3>
+                <div class="fieldDescription noApiKey hide" style="margin-bottom: 1em;">WeTrakr isn't fully set up on this server yet. Ask an administrator to check Dashboard &gt; Plugins &gt; WeTrakr, or see <a is="emby-linkbutton" class="button-link" href="https://github.com/kvanbiesen/wetrakr-emby" target="_blank" rel="noopener">github.com/kvanbiesen/wetrakr-emby</a>.</div>
+                <button is="emby-button" type="button" class="btnConnect raised button-submit block"><span>Connect</span></button>
+                <button onclick="window.open('https://wetrakr.com/', '_blank');" is="emby-button" type="button" class="raised block"><span>Create an account</span></button>
+            </div>
+
+            <!-- waiting for the user to approve the code -->
+            <div class="pairing hide">
+                <h2>Connect to WeTrakr</h2>
+                <div class="pairingText"></div>
+                <h3 class="pairingCode" style="font-size: 2.2em; letter-spacing: .3em;"></h3>
+                <div class="fieldDescription pairingStatus"></div>
+                <span class="pairingSeconds">600</span> seconds remaining
+                <button is="emby-button" type="button" class="btnCancelPairing raised button-cancel block"><span>Cancel</span></button>
+            </div>
+
+            <!-- connected -->
+            <div class="connected hide">
+                <div class="flex flex-wrap-wrap align-items-center">
+                    <h3 class="accountLine flex-grow" style="margin-right: 1em;">You are connected to WeTrakr.</h3>
+                    <div class="accountLinks">
+                        <a is="emby-linkbutton" class="button-link" target="_blank" href="https://wetrakr.com/">Open WeTrakr</a>
+                    </div>
+                </div>
+                <button is="emby-button" type="button" class="btnLogout raised button block"><span>Disconnect</span></button>
+
+                <h2>Scrobbling</h2>
+                <div class="checkboxList checkboxListContainer">
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" class="scrobbleMovies" />
+                            <span>Autoscrobbling Movies</span>
+                        </label>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" class="scrobbleShows" />
+                            <span>Autoscrobbling TV Shows</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="inputContainer">
+                    <input is="emby-input" type="number" class="minLength" label="Ignore items shorter than (minutes)" min="0" max="240" />
+                    <div class="fieldDescription">Very short clips are never reported. Set 0 to report everything.</div>
+                </div>
+                <div class="fieldDescription">
+                    <ul style="margin: .5em 0 0; padding-left: 1.2em; list-style: disc;">
+                        <li>Play, pause and stop are reported to WeTrakr as they happen and show on your profile as watching now. Who can see that is set in your privacy settings on WeTrakr.</li>
+                        <li>An item is marked as watched when you stop after 80%. Stopping earlier saves your place on WeTrakr.</li>
+                        <li>Marking a movie, an episode, a season or a whole series as played in Emby marks it as watched on WeTrakr too (following the two checkboxes above). Unmarking a single movie or a single episode removes that play from your WeTrakr history. Unmarking several things at once (a season, a series, a clean-up) does not touch your WeTrakr history, so a bulk change in Emby cannot wipe it.</li>
+                        <li>Requests to WeTrakr name Emby and its version, so WeTrakr support can tell where a report came from.</li>
+                    </ul>
+                </div>
+
+                <h3 style="margin-top: 1.5em;">Libraries WeTrakr should ignore</h3>
+                <div class="fieldDescription">Nothing in a checked library is reported, sent or changed by a sync.</div>
+                <div class="libraryList checkboxList paperList checkboxList-paperList"></div>
+
+                <div style="margin-top: 1em;">
+                    <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+                </div>
+
+                <h2>Watched history</h2>
+                <div class="fieldDescription">Keeps what you watched in Emby and on WeTrakr together, in both directions. Importing from WeTrakr is the big one: your whole history the first time, then only what changed. It only ever marks items as played; nothing is unmarked in Emby.</div>
+                <div class="checkboxList checkboxListContainer">
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" class="syncPull" />
+                            <span>Import from WeTrakr</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Marks movies and episodes in your Emby library as played when you watched them on WeTrakr, with the date you watched them.</div>
+                    </div>
+                    <div class="checkboxContainer">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" class="syncPush" />
+                            <span>Send new Emby plays to WeTrakr</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Catches up on plays the live updates missed (for example while the server was offline). It starts from the moment you turn it on: what you watched in Emby before is not copied over, and a sync that finds a suspiciously large number of new plays at once sends none of them. Only items WeTrakr does not already list are sent, so nothing is counted twice.</div>
+                    </div>
+                </div>
+                <div class="syncSection">
+                    <button is="emby-button" type="button" class="btnSync raised block"><span>Sync now</span></button>
+                    <div class="fieldDescription syncStatus"></div>
+                </div>
+                <div class="toggleContainer" style="margin-top: 1.5em;">
+                    <label>
+                        <input type="checkbox" is="emby-toggle" class="autoSync" />
+                        <span>Sync automatically</span>
+                    </label>
+                    <div class="fieldDescription toggleFieldDescription">Emby checks WeTrakr for what changed since the last sync and does only that. The first sync goes through your whole history.</div>
+                </div>
+                <div class="selectContainer autoSyncInterval hide">
+                    <select is="emby-select" class="autoSyncHours" label="Sync">
+                        <option value="1">Every hour</option>
+                        <option value="3">Every 3 hours</option>
+                        <option value="6">Every 6 hours</option>
+                        <option value="12">Every 12 hours</option>
+                        <option value="24">Every day</option>
+                        <option value="168">Every week</option>
+                    </select>
+                    <div class="fieldDescription autoSyncStatus"></div>
+                </div>
+                <div style="margin-top: 2em;">
+                    <h3 style="margin-bottom: .25em;">Start over</h3>
+                    <div class="fieldDescription">Reads your whole WeTrakr history again, for example when a sync missed something or you now use another WeTrakr account. Nothing is unmarked: movies and episodes Emby already has as played only get their watch date refreshed.</div>
+                    <button is="emby-button" type="button" class="btnReset button-link" style="margin-top: .5em;"><span>Reset and sync everything again</span></button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

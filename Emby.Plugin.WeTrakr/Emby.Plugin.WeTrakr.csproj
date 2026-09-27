@@ -4,22 +4,27 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Emby.Plugin.WeTrakr</RootNamespace>
     <AssemblyName>Emby.Plugin.WeTrakr</AssemblyName>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>3.0.0</Version>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <FileVersion>3.0.0.0</FileVersion>
     <LangVersion>latest</LangVersion>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Configuration\configPage.html" />
-    <None Remove="Configuration\configPage.js" />
+    <None Remove="Configuration\wetrakr.html" />
+    <None Remove="Configuration\wetrakr.js" />
+    <None Remove="Configuration\wetrakradmin.html" />
+    <None Remove="Configuration\wetrakradmin.js" />
     <None Remove="thumb.png" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Configuration\configPage.html" />
-    <EmbeddedResource Include="Configuration\configPage.js" />
+    <EmbeddedResource Include="Configuration\wetrakr.html" />
+    <EmbeddedResource Include="Configuration\wetrakr.js" />
+    <EmbeddedResource Include="Configuration\wetrakradmin.html" />
+    <EmbeddedResource Include="Configuration\wetrakradmin.js" />
     <EmbeddedResource Include="thumb.png" />
   </ItemGroup>
 
@@ -27,10 +32,55 @@
     <!-- Server assemblies present a netstandard2.0 ABI that is compatible across
          Emby Server releases; the actual assembly loaded at runtime is whatever
          the host server ships, so the NuGet version here only needs to be recent
-         enough to expose the interfaces this plugin uses. -->
-    <PackageReference Include="MediaBrowser.Server.Core" Version="4.9.1.90" />
+         enough to expose the interfaces this plugin uses. Pinned to the newest
+         4.10.x SDK on NuGet: every member this plugin touches (IScheduledTask,
+         IUserConfigurationFactory, IFeatureFactory, IHttpClient, IUserManager,
+         IUserDataManager, ILibraryManager, ISessionManager's playback events,
+         InternalItemsQuery, IAuthorizationContext, ...) is unchanged between
+         4.9.1.90 and 4.10.0.24-beta2 — verified by reflecting both packages and
+         diffing every member of every type this plugin references. 4.10's only
+         additions in that diff are elsewhere (a new session "Party"/watch-together
+         API, new optional query/policy fields) and don't affect this plugin, so
+         building against either SDK version produces working code on both server
+         versions. -->
+    <PackageReference Include="MediaBrowser.Server.Core" Version="4.10.0.24-beta2" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
     <PackageReference Include="System.Memory" Version="4.6.0" />
   </ItemGroup>
+
+  <!--
+    WeTrakr app key (the API's client_id, sent as the wetrakr-api-key header).
+
+    It is NOT committed. CI supplies it from the WETRAKR_API_KEY GitHub Actions
+    secret (see .github/workflows/build.yml); a local build can pass
+    -p:WeTrakrApiKey=... or set the WETRAKR_API_KEY environment variable. With no
+    key the plugin still builds and loads, but the pages report "API key not
+    configured" and nothing is sent until an admin pastes one on the plugin page.
+
+    A secret keeps the key out of git and CI logs; it cannot keep it out of the
+    shipped DLL, which is inspectable by anyone who installs it. That is fine for
+    a public app key (the WeTrakr docs say installable apps carry only the key,
+    never a client_secret), so never put a client_secret in here.
+  -->
+  <PropertyGroup>
+    <WeTrakrApiKey Condition="'$(WeTrakrApiKey)' == ''">$(WETRAKR_API_KEY)</WeTrakrApiKey>
+  </PropertyGroup>
+
+  <Target Name="GenerateWeTrakrApiKey" BeforeTargets="CoreCompile;GenerateAssemblyInfo">
+    <PropertyGroup>
+      <WeTrakrApiKeyFile>$(IntermediateOutputPath)WeTrakrApiKey.g.cs</WeTrakrApiKeyFile>
+      <WeTrakrApiKeyClean>$([System.Text.RegularExpressions.Regex]::Replace('$(WeTrakrApiKey)', '\s', ''))</WeTrakrApiKeyClean>
+    </PropertyGroup>
+    <Error Condition="'$(WeTrakrApiKeyClean)' != '' And !$([System.Text.RegularExpressions.Regex]::IsMatch('$(WeTrakrApiKeyClean)', '^[A-Za-z0-9_.-]+$'))"
+           Text="WETRAKR_API_KEY contains characters that are not valid in an app key." />
+    <WriteLinesToFile File="$(WeTrakrApiKeyFile)"
+                      Lines="namespace Emby.Plugin.WeTrakr.Api { internal static class BuildSecrets { public const string ApiKey = &quot;$(WeTrakrApiKeyClean)&quot;%3B } }"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(WeTrakrApiKeyFile)" />
+      <FileWrites Include="$(WeTrakrApiKeyFile)" />
+    </ItemGroup>
+  </Target>
 
 </Project>

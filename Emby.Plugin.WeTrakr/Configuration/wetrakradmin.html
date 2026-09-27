@@ -1,0 +1,18 @@
+<div is="emby-scroller" class="view flex flex-direction-column scrollFrameY flex-grow" data-horizontal="false" data-forcescrollbar="true" data-centerfocus="true" data-bindheader="true" data-controller="__plugin/wetrakradminjs" data-title="WeTrakr">
+    <div class="scrollSlider flex-grow flex-direction-column padded-left padded-left-page padded-right padded-top-page padded-bottom-page">
+
+        <div class="readOnlyContent">
+            <p>WeTrakr settings are per user, so each user connects their own WeTrakr account. Users open them from their profile menu (click the user icon, then WeTrakr). As an admin you can open and edit any user's settings from the list below. You never see anyone's WeTrakr password: they sign in on wetrakr.com with a short code.</p>
+            <p class="fieldDescription">Issues or questions: <a is="emby-linkbutton" class="button-link" href="https://github.com/kvanbiesen/wetrakr-emby" target="_blank" rel="noopener">github.com/kvanbiesen/wetrakr-emby</a></p>
+        </div>
+
+        <h2 class="sectionTitle">Plugin</h2>
+        <div class="fieldDescription adminVersions"></div>
+        <div class="fieldDescription adminKeyStatus"></div>
+
+        <h2 class="sectionTitle" style="margin-top: 2em;">Users</h2>
+        <div class="wetrakrUserList paperList">
+            <p class="wetrakrUserListLoading">Loading users...</p>
+        </div>
+    </div>
+</div>
