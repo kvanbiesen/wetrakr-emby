@@ -239,6 +239,14 @@ namespace Emby.Plugin.WeTrakr.Api
             if (string.IsNullOrEmpty(auth.refreshToken)) throw new NotConnectedException("Not connected to WeTrakr.");
             if (Expiring(auth)) auth = await Refresh(userId, auth, ct).ConfigureAwait(false);
 
+            // WeTrakr resolves titles by id (tmdb/imdb/tvdb) and "skips silently" — no error — when
+            // it can't match one, per its own docs. That makes a mismatched or missing id on our side
+            // and a genuine failure on WeTrakr's side look identical unless the actual bodies are
+            // visible. A scrobble is a handful of calls per playback (WeTrakr wants events, not a
+            // heartbeat) so those are worth an Info line; a sync run can be dozens of paginated
+            // calls, so those only get logged at Debug to keep the normal log quiet.
+            if (json != null) Log(sync, "WeTrakr {0} {1}: {2}", method, path, Truncate(json, 300));
+
             var timeout = sync ? SyncTimeoutMs : ScrobbleTimeoutMs;
             var retries = sync ? 2 : 0;
             var attempt = 0;
@@ -273,8 +281,16 @@ namespace Emby.Plugin.WeTrakr.Api
                     continue;
                 }
 
+                Log(sync, "WeTrakr {0} {1} answered HTTP {2}: {3}", method, path, reply.Status, Truncate(reply.Body, 300));
                 return reply;
             }
+        }
+
+        // scrobble calls are rare (events, not a heartbeat - WeTrakr suspends keys that poll) so
+        // they're logged at Info; sync calls can be dozens per run and only go to Debug.
+        private void Log(bool sync, string format, params object[] args)
+        {
+            if (sync) _logger.Debug(format, args); else _logger.Info(format, args);
         }
 
         private async Task<AuthState> Refresh(long userId, AuthState stale, CancellationToken ct)
