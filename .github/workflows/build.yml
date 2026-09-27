@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test Emby.Plugin.WeTrakr.Tests/Emby.Plugin.WeTrakr.Tests.csproj -c Release
+
+      # The app key comes from the WETRAKR_API_KEY repository secret and is baked
+      # into the DLL at compile time (see the GenerateWeTrakrApiKey target in the
+      # csproj). Pull requests from forks do not receive secrets, so those builds
+      # simply produce a DLL without a key. Add the secret under
+      # Settings > Secrets and variables > Actions.
+      - name: Build plugin
+        env:
+          WETRAKR_API_KEY: ${{ secrets.WETRAKR_API_KEY }}
+        run: dotnet build Emby.Plugin.WeTrakr/Emby.Plugin.WeTrakr.csproj -c Release
+
+      - name: Upload DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: Emby.Plugin.WeTrakr
+          path: Emby.Plugin.WeTrakr/bin/Release/netstandard2.0/Emby.Plugin.WeTrakr.dll
+
+      - name: Attach DLL to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Emby.Plugin.WeTrakr/bin/Release/netstandard2.0/Emby.Plugin.WeTrakr.dll
